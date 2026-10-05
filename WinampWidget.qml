@@ -14,11 +14,21 @@ PanelWindow {
         top: true
         right: true
     }
+    margins {
+        top: retroWinamp.panelTopMargin
+        right: retroWinamp.panelRightMargin
+    }
 
     property var availablePlayers: Mpris.players.values
     property int playerIndex: 0
     property real uiScale: 1.0
     property bool compactMode: uiScale <= 0.85
+    property int panelTopMargin: 0
+    property int panelRightMargin: 0
+    property real moveStartGlobalX: 0
+    property real moveStartGlobalY: 0
+    property int moveStartTopMargin: 0
+    property int moveStartRightMargin: 0
     property bool playlistOpen: false
     property var player: availablePlayers.length > 0
                          ? availablePlayers[playerIndex % availablePlayers.length] : null
@@ -47,6 +57,26 @@ PanelWindow {
     }
 
     onThemeIndexChanged: widgetSettings.themeIndex = themeIndex
+
+    function beginPanelMove(dragArea, mouse) {
+        var globalPosition = dragArea.mapToGlobal(Qt.point(mouse.x, mouse.y))
+        moveStartGlobalX = globalPosition.x
+        moveStartGlobalY = globalPosition.y
+        moveStartTopMargin = panelTopMargin
+        moveStartRightMargin = panelRightMargin
+    }
+
+    function movePanel(dragArea, mouse) {
+        if (!screen)
+            return
+        var globalPosition = dragArea.mapToGlobal(Qt.point(mouse.x, mouse.y))
+        var maxTop = Math.max(0, screen.height - implicitHeight)
+        var maxRight = Math.max(0, screen.width - implicitWidth)
+        panelTopMargin = Math.round(Math.max(0, Math.min(maxTop,
+            moveStartTopMargin + globalPosition.y - moveStartGlobalY)))
+        panelRightMargin = Math.round(Math.max(0, Math.min(maxRight,
+            moveStartRightMargin - globalPosition.x + moveStartGlobalX)))
+    }
 
     component BevelEdges: Item {
         id: bevel
@@ -305,6 +335,19 @@ PanelWindow {
                 styleColor: "#ffffff"
             }
 
+            MouseArea {
+                id: titleDragArea
+                x: 24
+                width: 145
+                height: parent.height
+                cursorShape: Qt.SizeAllCursor
+                onPressed: function(mouse) { retroWinamp.beginPanelMove(titleDragArea, mouse) }
+                onPositionChanged: function(mouse) {
+                    if (pressed)
+                        retroWinamp.movePanel(titleDragArea, mouse)
+                }
+            }
+
             Rectangle {
                 anchors.right: parent.right
                 anchors.rightMargin: 77
@@ -529,6 +572,21 @@ PanelWindow {
                             }
                         }
                     }
+                }
+            }
+
+            MouseArea {
+                id: compactDragArea
+                visible: retroWinamp.compactMode
+                x: 0
+                y: 0
+                width: 10
+                height: parent.height
+                cursorShape: Qt.SizeAllCursor
+                onPressed: function(mouse) { retroWinamp.beginPanelMove(compactDragArea, mouse) }
+                onPositionChanged: function(mouse) {
+                    if (pressed)
+                        retroWinamp.movePanel(compactDragArea, mouse)
                 }
             }
         }
