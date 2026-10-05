@@ -1,4 +1,5 @@
-import QtQuick
+ import QtQuick
+import QtCore
 import Quickshell
 import Quickshell.Io
 import Quickshell.Services.Mpris
@@ -6,8 +7,8 @@ import Quickshell.Services.Mpris
 PanelWindow {
     id: retroWinamp
 
-    implicitWidth: 275 * uiScale
-    implicitHeight: 116 * uiScale
+    implicitWidth: (compactMode ? 110 : 275) * uiScale
+    implicitHeight: (compactMode ? 78 : 116) * uiScale
     color: "transparent"
     anchors {
         top: true
@@ -17,6 +18,7 @@ PanelWindow {
     property var availablePlayers: Mpris.players.values
     property int playerIndex: 0
     property real uiScale: 1.0
+    property bool compactMode: uiScale <= 0.85
     property bool playlistOpen: false
     property var player: availablePlayers.length > 0
                          ? availablePlayers[playerIndex % availablePlayers.length] : null
@@ -27,13 +29,24 @@ PanelWindow {
     property string distroId: "linux"
     property var distroLogoCandidates: []
     property int distroLogoCandidateIndex: 0
-    property int themeIndex: 0
+    property int themeIndex: widgetSettings.themeIndex
     property var palettes: [
         { name: "Classic", panel: "#bcbcc0", face: "#c9c9cd", highlight: "#ffffff", lightShade: "#e8e8ec", darkShade: "#85858a", shadow: "#303034", text: "#101014", screen: "#000000", accent: "#9999ff", track: "#a6a6ad", visualizer: "#68dc87" },
         { name: "Carbon", panel: "#252d33", face: "#3b4851", highlight: "#b7c8d0", lightShade: "#7f929b", darkShade: "#1d252a", shadow: "#101518", text: "#edf4f5", screen: "#080d10", accent: "#41d8c1", track: "#4a5860", visualizer: "#8effc2" },
-        { name: "Aurora", panel: "#dfcdb1", face: "#f0dec3", highlight: "#fff6e3", lightShade: "#f6e7ce", darkShade: "#a58e6e", shadow: "#584936", text: "#30251b", screen: "#17140f", accent: "#d96b52", track: "#b6a07d", visualizer: "#f1c75b" }
+        { name: "Aurora", panel: "#dfcdb1", face: "#f0dec3", highlight: "#fff6e3", lightShade: "#f6e7ce", darkShade: "#a58e6e", shadow: "#584936", text: "#30251b", screen: "#17140f", accent: "#d96b52", track: "#b6a07d", visualizer: "#f1c75b" },
+        { name: "Matrix", panel: "#182a20", face: "#294333", highlight: "#a9d4ae", lightShade: "#64856b", darkShade: "#132219", shadow: "#08110b", text: "#d9f3dc", screen: "#030905", accent: "#57e879", track: "#31563c", visualizer: "#8effa4" },
+        { name: "Arctic", panel: "#9dbbc5", face: "#c6e0e6", highlight: "#f3ffff", lightShade: "#e0f4f7", darkShade: "#66838c", shadow: "#263e45", text: "#122b33", screen: "#071318", accent: "#50d8ee", track: "#86abb5", visualizer: "#70f0ce" },
+        { name: "Ember", panel: "#3a2521", face: "#59362e", highlight: "#f2c4a1", lightShade: "#a77b62", darkShade: "#2b1a17", shadow: "#160d0b", text: "#ffe4ce", screen: "#100705", accent: "#ff7957", track: "#70463a", visualizer: "#ffc15c" }
     ]
     property var palette: palettes[themeIndex]
+
+    Settings {
+        id: widgetSettings
+        location: Qt.resolvedUrl("winamp-settings.ini")
+        property int themeIndex: 0
+    }
+
+    onThemeIndexChanged: widgetSettings.themeIndex = themeIndex
 
     component BevelEdges: Item {
         id: bevel
@@ -244,8 +257,8 @@ PanelWindow {
     }
 
     Rectangle {
-        width: 275
-        height: 116
+        width: retroWinamp.compactMode ? 110 : 275
+        height: retroWinamp.compactMode ? 78 : 116
         scale: retroWinamp.uiScale
         transformOrigin: Item.TopLeft
         color: retroWinamp.palette.panel
@@ -263,6 +276,7 @@ PanelWindow {
 
         Rectangle {
             id: titleBar
+            visible: !retroWinamp.compactMode
             x: 1
             y: 1
             width: parent.width - 2
@@ -289,6 +303,38 @@ PanelWindow {
                 font.pixelSize: 10
                 style: Text.Outline
                 styleColor: "#ffffff"
+            }
+
+            Rectangle {
+                anchors.right: parent.right
+                anchors.rightMargin: 77
+                anchors.verticalCenter: parent.verticalCenter
+                width: 20
+                height: 11
+                color: retroWinamp.palette.face
+                border.color: retroWinamp.palette.shadow
+                border.width: 1
+
+                BevelEdges {
+                    anchors.fill: parent
+                    pressed: compactToggleMouse.pressed
+                    highlight: retroWinamp.palette.highlight
+                    lightShade: retroWinamp.palette.lightShade
+                    darkShade: retroWinamp.palette.darkShade
+                    shadow: retroWinamp.palette.shadow
+                }
+                Text {
+                    anchors.centerIn: parent
+                    text: "MIN"
+                    color: retroWinamp.palette.text
+                    font.pixelSize: 5
+                    font.bold: true
+                }
+                MouseArea {
+                    id: compactToggleMouse
+                    anchors.fill: parent
+                    onClicked: retroWinamp.uiScale = 0.75
+                }
             }
 
             Rectangle {
@@ -359,6 +405,7 @@ PanelWindow {
         }
 
         Rectangle {
+            visible: !retroWinamp.compactMode
             x: 1
             y: 16
             width: parent.width - 2
@@ -369,7 +416,7 @@ PanelWindow {
         Rectangle {
             id: display
             x: 8
-            y: 21
+            y: retroWinamp.compactMode ? 5 : 21
             width: 94
             height: 45
             color: retroWinamp.palette.screen
@@ -487,6 +534,7 @@ PanelWindow {
         }
 
         Rectangle {
+            visible: !retroWinamp.compactMode
             id: trackDisplay
             x: 107
             y: 21
@@ -535,6 +583,7 @@ PanelWindow {
         }
 
         Text {
+            visible: !retroWinamp.compactMode
             x: 108
             y: 39
             width: 44
@@ -559,6 +608,7 @@ PanelWindow {
         }
 
         Rectangle {
+            visible: !retroWinamp.compactMode
             x: 154
             y: 39
             width: 52
@@ -579,6 +629,7 @@ PanelWindow {
         }
 
         Rectangle {
+            visible: !retroWinamp.compactMode
             x: 208
             y: 39
             width: 59
@@ -597,6 +648,7 @@ PanelWindow {
         }
 
         Rectangle {
+            visible: !retroWinamp.compactMode
             x: 108
             y: 57
             width: 50
@@ -638,6 +690,7 @@ PanelWindow {
         }
 
         Rectangle {
+            visible: !retroWinamp.compactMode
             x: 160
             y: 57
             width: 36
@@ -676,6 +729,7 @@ PanelWindow {
         }
 
         Rectangle {
+            visible: !retroWinamp.compactMode
             x: 199
             y: 54
             width: 31
@@ -695,6 +749,7 @@ PanelWindow {
         }
 
         Rectangle {
+            visible: !retroWinamp.compactMode
             x: 233
             y: 54
             width: 31
@@ -718,6 +773,7 @@ PanelWindow {
         }
 
         Rectangle {
+            visible: !retroWinamp.compactMode
             x: 8
             y: 71
             width: parent.width - 16
@@ -778,14 +834,22 @@ PanelWindow {
         }
 
         Row {
-            x: 16
-            y: 86
-            spacing: 2
+            x: retroWinamp.compactMode ? 8 : 16
+            y: retroWinamp.compactMode ? 55 : 86
+            spacing: retroWinamp.compactMode ? 0 : 2
 
             Row {
-                spacing: 2
+                spacing: retroWinamp.compactMode ? 1 : 2
                 Repeater {
-                    model: [
+                    model: retroWinamp.compactMode ? [
+                        { label: "<<", action: "rewind" },
+                        { label: ">", action: "play" },
+                        { label: "||", action: "pause" },
+                        { label: "<", action: "back" },
+                        { label: ">>", action: "forward" },
+                        { label: "EJ", action: "eject" },
+                        { label: "TH", action: "theme" }
+                    ] : [
                         { label: "<<", action: "rewind" },
                         { label: ">", action: "play" },
                         { label: "||", action: "pause" },
@@ -795,11 +859,12 @@ PanelWindow {
                     ]
 
                     Rectangle {
-                        width: 20
-                        height: 19
+                        width: retroWinamp.compactMode ? 12 : 20
+                        height: retroWinamp.compactMode ? 17 : 19
                         property bool active: modelData.action === "pause"
                                               && retroWinamp.player && retroWinamp.player.isPlaying
                         property bool commandAvailable: {
+                            if (modelData.action === "theme") return true
                             if (!retroWinamp.player) return false
                             if (modelData.action === "play") return retroWinamp.player.canPlay
                             if (modelData.action === "pause") return retroWinamp.player.canPause
@@ -833,7 +898,7 @@ PanelWindow {
                             color: parent.commandAvailable ? retroWinamp.palette.text : retroWinamp.palette.darkShade
                             font.family: "Monospace"
                             font.bold: true
-                            font.pixelSize: 8
+                            font.pixelSize: retroWinamp.compactMode ? 7 : 8
                         }
 
                         MouseArea {
@@ -841,7 +906,9 @@ PanelWindow {
                             anchors.fill: parent
                             enabled: parent.commandAvailable
                             onClicked: {
-                                if (modelData.action === "rewind") retroWinamp.skipBy(-10)
+                                if (modelData.action === "theme")
+                                    retroWinamp.themeIndex = (retroWinamp.themeIndex + 1) % retroWinamp.palettes.length
+                                else if (modelData.action === "rewind") retroWinamp.skipBy(-10)
                                 else if (modelData.action === "play") retroWinamp.player.play()
                                 else if (modelData.action === "pause") retroWinamp.player.pause()
                                 else if (modelData.action === "back") retroWinamp.skipBy(-5)
@@ -856,6 +923,7 @@ PanelWindow {
             Item { width: 5; height: 1 }
 
             Rectangle {
+                visible: !retroWinamp.compactMode
                 width: 42
                 height: 19
                 property bool active: retroWinamp.player && retroWinamp.player.shuffleSupported
@@ -884,6 +952,7 @@ PanelWindow {
             }
 
             Rectangle {
+                visible: !retroWinamp.compactMode
                 width: 27
                 height: 19
                 property bool active: retroWinamp.player && retroWinamp.player.loopSupported
@@ -913,6 +982,7 @@ PanelWindow {
             }
 
             Rectangle {
+                visible: !retroWinamp.compactMode
                 width: 16
                 height: 19
                 color: "transparent"
@@ -946,7 +1016,7 @@ PanelWindow {
             width: parent.width - 16
             height: 88
             z: 20
-            visible: retroWinamp.playlistOpen
+            visible: retroWinamp.playlistOpen && !retroWinamp.compactMode
             color: retroWinamp.palette.panel
             border.color: retroWinamp.palette.shadow
             border.width: 1

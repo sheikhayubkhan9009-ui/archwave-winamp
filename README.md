@@ -46,7 +46,7 @@ To remove the installed files, run `./uninstall.sh` from this repository. It rem
 - First small slider: system output volume. Second small slider: left/right audio balance.
 - Main long slider: seek within the current track.
 - Click the clock to switch between 24-hour and 12-hour format.
-- The clock shows the detected distribution logo. The theme button cycles Classic, Carbon, and Aurora.
+- The clock shows the detected distribution logo. The theme button cycles Classic, Carbon, Aurora, Matrix, Arctic, and Ember; the selection is saved between launches. In compact mode, use `TH` to change themes.
 - Drag any corner grip to resize the widget.
 
 Some track controls are unavailable when the selected media player does not advertise the corresponding MPRIS capability.
