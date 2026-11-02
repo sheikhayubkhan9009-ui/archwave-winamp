@@ -13,7 +13,7 @@ bin_dir="$HOME/.local/bin"
 launcher="$bin_dir/archwave-winamp"
 
 mkdir -p "$config_dir" "$bin_dir"
-install -m 644 "$source_dir/WinampWidget.qml" "$config_dir/shell.qml"
+install -m 644 "$source_dir/shell.qml" "$config_dir/shell.qml"
 
 cat > "$launcher" <<EOF
 #!/bin/sh
