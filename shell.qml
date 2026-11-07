@@ -4,6 +4,7 @@ import QtCore
 import Quickshell
 import Quickshell.Io
 import Quickshell.Services.Mpris
+import Quickshell.Services.Pipewire
 
 PanelWindow {
     WlrLayershell.layer: behindWindows ? WlrLayer.Bottom : WlrLayer.Top
@@ -35,8 +36,70 @@ PanelWindow {
     property bool playlistOpen: false
     property bool themePickerOpen: false
     property alias behindWindows: widgetSettings.behindWindows
-    property var player: availablePlayers.length > 0
-                         ? availablePlayers[playerIndex % availablePlayers.length] : null
+
+    PwNodePeakMonitor {
+        id: peakMonitor
+        node: Pipewire.defaultAudioSink
+        enabled: true
+    }
+
+    function findPlayingPlayer() {
+        var list = availablePlayers || []
+        for (var i = 0; i < list.length; i++) {
+            var p = list[i]
+            if (p && (p.isPlaying || p.playbackState === MprisPlaybackState.Playing))
+                return p
+        }
+        return null
+    }
+
+    function checkActivePlayer() {
+        var playing = findPlayingPlayer()
+        if (playing) {
+            var list = availablePlayers || []
+            var idx = list.indexOf(playing)
+            if (idx >= 0) playerIndex = idx
+        }
+    }
+
+    onAvailablePlayersChanged: checkActivePlayer()
+    Component.onCompleted: checkActivePlayer()
+
+    readonly property bool isAudioActive: {
+        if (peakMonitor.node && peakMonitor.peak > 0.005) return true
+        if (player && (player.isPlaying || player.playbackState === MprisPlaybackState.Playing)) return true
+        var list = availablePlayers || []
+        for (var i = 0; i < list.length; i++) {
+            var p = list[i]
+            if (p && (p.isPlaying || p.playbackState === MprisPlaybackState.Playing))
+                return true
+        }
+        return false
+    }
+
+    property var player: {
+        if (!availablePlayers || availablePlayers.length === 0) return null
+        var selected = availablePlayers[playerIndex % availablePlayers.length]
+        if (selected && (selected.isPlaying || selected.playbackState === MprisPlaybackState.Playing))
+            return selected
+        var playing = findPlayingPlayer()
+        if (playing) return playing
+        return selected
+    }
+
+    Instantiator {
+        model: Mpris.players
+        delegate: Connections {
+            required property var modelData
+            target: modelData
+            function onIsPlayingChanged() {
+                retroWinamp.checkActivePlayer()
+            }
+            function onPlaybackStateChanged() {
+                retroWinamp.checkActivePlayer()
+            }
+        }
+    }
     property real systemVolume: 0.55
     property real systemBalance: 0.5
     property bool clock24Hour: widgetSettings.clock24Hour
@@ -570,6 +633,11 @@ PanelWindow {
                     font.bold: true
                     font.pixelSize: 8
                 }
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: retroWinamp.availablePlayers.length > 1 ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: retroWinamp.cyclePlayer()
+                }
             }
 
             Text {
@@ -615,8 +683,14 @@ PanelWindow {
                         Timer {
                             interval: 70 + index * 9
                             repeat: true
-                            running: retroWinamp.player && retroWinamp.player.isPlaying
-                            onTriggered: visualBar.height = 2 + Math.random() * (visualBar.peakHeight - 2)
+                            running: retroWinamp.isAudioActive
+                            onTriggered: {
+                                var scaleFactor = 1.0
+                                if (peakMonitor.node && peakMonitor.peak > 0.005) {
+                                    scaleFactor = Math.min(1.5, Math.max(0.4, peakMonitor.peak * 3.5))
+                                }
+                                visualBar.height = Math.max(2, Math.min(visualBar.peakHeight, Math.round(2 + Math.random() * (visualBar.peakHeight - 2) * scaleFactor)))
+                            }
                             onRunningChanged: {
                                 if (!running)
                                     visualBar.height = 2
@@ -704,10 +778,8 @@ PanelWindow {
             y: 39
             width: 44
             height: 13
-            text: retroWinamp.player
-                  ? (retroWinamp.player.metadata["xesam:audioBitrate"]
-                     ? Math.round(retroWinamp.player.metadata["xesam:audioBitrate"] / 1000) + "Kbps"
-                     : "N/A Kbps")
+            text: (retroWinamp.player && retroWinamp.player.metadata && retroWinamp.player.metadata["xesam:audioBitrate"])
+                  ? Math.round(retroWinamp.player.metadata["xesam:audioBitrate"] / 1000) + "Kbps"
                   : "N/A Kbps"
             color: retroWinamp.palette.text
             font.family: "Monospace"
@@ -733,7 +805,7 @@ PanelWindow {
             border.color: retroWinamp.palette.shadow
             Text {
                 anchors.fill: parent
-                text: retroWinamp.player && retroWinamp.player.metadata["xesam:audioSampleRate"]
+                text: (retroWinamp.player && retroWinamp.player.metadata && retroWinamp.player.metadata["xesam:audioSampleRate"])
                       ? Math.round(retroWinamp.player.metadata["xesam:audioSampleRate"] / 1000) + "KHz"
                       : "N/A KHz"
                 color: retroWinamp.palette.text
@@ -977,21 +1049,26 @@ PanelWindow {
                     Rectangle {
                         width: retroWinamp.compactMode ? 15 : 20
                         height: retroWinamp.compactMode ? 20 : 19
-                        property bool active: modelData.action === "pause"
-                                              && retroWinamp.player && retroWinamp.player.isPlaying
+                        property bool active: {
+                            if (!retroWinamp.player) return false
+                            if (modelData.action === "play")
+                                return retroWinamp.isAudioActive
+                            if (modelData.action === "pause")
+                                return !retroWinamp.isAudioActive && (retroWinamp.player.playbackState === MprisPlaybackState.Paused)
+                            return false
+                        }
                         property bool commandAvailable: {
                             if (modelData.action === "theme") return true
-                            if (!retroWinamp.player) return false
-                            if (modelData.action === "play") return retroWinamp.player.canPlay
-                            if (modelData.action === "pause") return retroWinamp.player.canPause
-                            if (modelData.action === "rewind")
-                                return retroWinamp.player.canSeek && retroWinamp.player.position > 0
-                            if (modelData.action === "back")
-                                return retroWinamp.player.canSeek && retroWinamp.player.position > 0
-                            if (modelData.action === "forward")
-                                return retroWinamp.player.canSeek
-                                       && retroWinamp.player.position < retroWinamp.player.length
                             if (modelData.action === "eject") return true
+                            if (!retroWinamp.player) return false
+                            if (modelData.action === "play")
+                                return retroWinamp.player.canPlay || retroWinamp.player.canTogglePlaying || retroWinamp.player.canControl
+                            if (modelData.action === "pause")
+                                return retroWinamp.player.canPause || retroWinamp.player.canTogglePlaying || retroWinamp.player.canControl
+                            if (modelData.action === "rewind" || modelData.action === "back")
+                                return retroWinamp.player.canGoPrevious || (retroWinamp.player.canSeek && retroWinamp.player.position > 0)
+                            if (modelData.action === "forward")
+                                return retroWinamp.player.canGoNext || (retroWinamp.player.canSeek && retroWinamp.player.position < retroWinamp.player.length)
                             return false
                         }
                         property bool sunken: active || transportMouse.pressed
@@ -1022,14 +1099,28 @@ PanelWindow {
                             anchors.fill: parent
                             enabled: parent.commandAvailable
                             onClicked: {
-                                if (modelData.action === "theme")
+                                if (modelData.action === "theme") {
                                     retroWinamp.themePickerOpen = !retroWinamp.themePickerOpen
-                                else if (modelData.action === "rewind") retroWinamp.skipBy(-10)
-                                else if (modelData.action === "play") retroWinamp.player.play()
-                                else if (modelData.action === "pause") retroWinamp.player.pause()
-                                else if (modelData.action === "back") retroWinamp.skipBy(-5)
-                                else if (modelData.action === "forward") retroWinamp.skipBy(10)
-                                else if (modelData.action === "eject") retroWinamp.eject()
+                                } else if (modelData.action === "rewind") {
+                                    if (retroWinamp.player.canGoPrevious) retroWinamp.player.previous()
+                                    else retroWinamp.skipBy(-10)
+                                } else if (modelData.action === "play") {
+                                    if (retroWinamp.player.canPlay) retroWinamp.player.play()
+                                    else if (retroWinamp.player.canTogglePlaying) retroWinamp.player.togglePlaying()
+                                    else retroWinamp.player.play()
+                                } else if (modelData.action === "pause") {
+                                    if (retroWinamp.player.canPause) retroWinamp.player.pause()
+                                    else if (retroWinamp.player.canTogglePlaying) retroWinamp.player.togglePlaying()
+                                    else retroWinamp.player.pause()
+                                } else if (modelData.action === "back") {
+                                    if (retroWinamp.player.canGoPrevious) retroWinamp.player.previous()
+                                    else retroWinamp.skipBy(-5)
+                                } else if (modelData.action === "forward") {
+                                    if (retroWinamp.player.canGoNext) retroWinamp.player.next()
+                                    else retroWinamp.skipBy(10)
+                                } else if (modelData.action === "eject") {
+                                    retroWinamp.eject()
+                                }
                             }
                         }
                     }
